@@ -57,7 +57,7 @@ add_percentage <- function(.data, var) {
 ```
 
 
-```{r data}
+```{r data, include=FALSE}
 library(BiocSurvey)
 responses
 questions
