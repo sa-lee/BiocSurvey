@@ -4,4 +4,4 @@
 ^docs$
 ^pkgdown$
 ^\.travis\.yml$
-report.md
+^report\.html$
