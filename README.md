@@ -16,11 +16,18 @@ BiocManager::install("sa-lee/BiocSurvey",
                     dependencies = TRUE)
 ```
 
-If you just want the raw data, look at the "data-raw" directory. Alternatively,
-the package comes with the responses and the questions look up table
-as tibbles.
+If you just want the raw data, the responses are stored
+as csv files in "data-raw"
 
-If you want to just read the report, see the article.
+Alternatively, the package comes with the 
+responses and the questions look up tables available as tibbles.
+
+```r
+library(BiocSurvey)
+responses
+```
+
+If you want to just read the report, see the `vignette(package = "BiocSurvey")`.
 
 
 
