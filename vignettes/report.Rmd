@@ -58,13 +58,10 @@ add_percentage <- function(.data, var) {
 
 
 ```{r data}
-responses <- read_csv(here("data-raw", "responses_final.csv")) %>% 
-  filter_at(vars(-Timestamp), any_vars(!is.na(.)))
-  
-
-questions <- tibble(
-  question = names(responses[, 2:ncol(responses)])
-)
+library(BiocSurvey)
+responses
+questions
+valid_langs
 ```
 # Introduction
 
@@ -332,10 +329,7 @@ split responses into counts of languages used.
 
 ```{r proglang-tbl}
 title <- questions$question[11]
-valid_langs <- jsonlite::read_json(here("data-raw/github-100.json")) %>% 
-  names() %>% 
-  str_to_lower() %>% 
-  append(c("bash", "lisp", "emacs-lisp"))
+
 
 filter_valid_langs <- function(x) { 
   if (all(is.na(x))) return(NA_character_)
