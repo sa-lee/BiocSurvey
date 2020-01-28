@@ -4,16 +4,19 @@ Version: 0.0.1
 Authors@R: 
     person(given = "Stuart",
            family = "Lee",
-           role = c("aut", "cre"))
-Description: Report and raw data of Bioconductor Community Survey 
+           role = c("aut", "cre"),
+           email = "lee.s@wehi.edu.au")
+Description: Report and raw data of Bioconductor Community Survey conducted in 2019. 
 License: Artistic-2.0
 Encoding: UTF-8
 LazyData: true
+Depends: R (>= 3.6)
 Imports: 
     gendercodeR,
     gt,
     here,
-    tidyverse
+    tidyverse,
+    rlang
 Remotes:
   ropenscilabs/gendercodeR
   rstudio/gt
@@ -23,3 +26,4 @@ Suggests:
 VignetteBuilder: knitr
 URL: https://github.com/sa-lee/BiocSurvey
 BugReports: https://github.com/sa-lee/BiocSurvey/issues
+RoxygenNote: 7.0.2
