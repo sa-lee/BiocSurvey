@@ -1,0 +1,23 @@
+Package: BiocSurvey
+Title: Analysis of Community Survey Results
+Version: 0.0.1
+Authors@R: 
+    person(given = "Stuart",
+           family = "Lee",
+           role = c("aut", "cre"))
+Description: Report of Bioconductor developer's community survey 
+License: Artistic-2.0
+Encoding: UTF-8
+LazyData: true
+Imports: 
+    gendercodeR,
+    gt,
+    here,
+    tidyverse
+Remotes:
+  ropenscilabs/gendercodeR
+  rstudio/gt
+Suggests: 
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr

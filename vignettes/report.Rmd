@@ -1,0 +1,653 @@
+---
+title: "Bioconductor Community Survey Results"
+author:
+- name: "Stuart Lee"
+  affiliation: "Monash University, Australia"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{report}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  fig.path = "figs/",
+  fig.height = 6,
+  fig.width = 10,
+  fig.align = "center"
+)
+
+# packages
+library(here)
+library(tidyverse)
+library(gt)
+library(gendercodeR)
+theme_set(theme_bw())
+```
+
+
+```{r functions}
+simple_bar <- function(.data, category, count, question_name) {
+  x <- rlang::ensym(category)
+  y <- rlang::ensym(count)
+  ggplot(.data, aes(x = !!x, y = !!y)) +
+    geom_col() +
+    labs(title = question_name, x =  category, y = "Count") +
+    coord_flip()
+}
+
+counts_with_reorder <- function(.data, var, var_clean) {
+  var <- enquo(var)
+  var_clean <- ensym(var_clean)
+  .data %>% 
+    count(!!var) %>% 
+    mutate(!!var_clean := fct_reorder(if_else(is.na(!!var), "no response", !!var),  n))
+} 
+
+add_percentage <- function(.data, var) {
+  var <- enquo(var)
+  .data %>% 
+    mutate(percentage = !!var / sum(!!var) )
+}
+
+```
+
+
+```{r data}
+responses <- read_csv(here("data-raw", "responses_final.csv")) %>% 
+  filter_at(vars(-Timestamp), any_vars(!is.na(.)))
+  
+
+questions <- tibble(
+  question = names(responses[, 2:ncol(responses)])
+)
+```
+# Introduction
+
+The Bioconductor community survey was conducted via
+google forms during October - December 2019. It consisted
+of `r ncol(responses) - 1` questions about the usability, uptake and contributions of the Bioconductor project. By the end of the
+survey there were `r nrow(responses)` respondents. 
+
+## Demographics of respondents
+
+### Gender 
+
+Responses to the gender question were given as free text, these have been
+recoded to broad categories using the [gendercodeR](https://github.com/ropenscilabs/gendercoder) package. 
+
+```{r gender-table}
+gender <- responses %>% 
+  select(Gender) %>% 
+  mutate(Gender = gendercodeR::recode_gender(Gender)) %>% 
+  mutate(Gender = if_else(is.na(Gender), "no response", Gender)) %>% 
+  count(Gender) %>% 
+  mutate(percentage = n / sum(n)) %>% 
+  mutate(Gender = fct_reorder(Gender, n))
+
+gender %>% 
+  gt() %>% 
+  fmt_percent("percentage")
+```
+
+```{r gender-bar}
+simple_bar(gender, "Gender", "n", "Gender")
+```
+
+### Career stage
+
+Responses to the career stage and position question were recoded into five
+broad categories: 
+
+1. student: representing undergraduate / graduate students
+2. postdoc: representing postdocs in academia or industry
+3. academic: representing professors (assistant, full or emeritus), tenure track or PIs in academia
+4. service: representing staff scientitsts, research assistants or bioinformaticians in academia or industry
+5. other: any remaining career classification that are ambiguous like 'industry'
+
+```{r stage-table}
+career_stage <- responses %>% 
+  select(stage = `Career stage / position`) %>% 
+  mutate(stage = str_to_lower(stage),
+         stage = str_replace(stage, "-", "")) %>% 
+  count(stage) %>% 
+  mutate(profile = case_when(
+    str_detect(stage, "phd") | str_detect(stage, "undergrad") ~ "student",
+    str_detect(stage, "postdoc") | str_detect(stage, "post doc") | str_detect(stage, "postdo") ~ "postdoc",
+    str_detect(stage, "professor") | 
+    str_detect(stage, "pi") |
+    str_detect(stage, "prof") | str_detect(stage, "emeritus") | str_detect(stage, "tenure") | str_detect(stage, "faculty") |
+      str_detect(stage, "earlycareer") | str_detect(stage, "lecturer") ~ "academic",
+    str_detect(stage, "staff") | str_detect(stage, "bioinformatic") | str_detect(stage, "experimental") | str_detect(stage, "research assistant")~ "service role",
+    is.na(stage) ~ "no response",
+    TRUE ~ "other"
+  )) %>% 
+  count(profile, wt = n) %>% 
+  mutate(Position = fct_reorder(profile, n), percentage = n / sum(n))
+
+career_stage %>% 
+  select(-profile, Position, n, percentage) %>% 
+  gt() %>% 
+  fmt_percent("percentage")
+```
+
+```{r stage-plot}
+career_stage %>% 
+  simple_bar("Position", "n", "What is your position?")
+```
+
+
+### Biologist or Bioinformatician or both?
+
+```{r dry-lab}
+title <- questions$question[3]
+dry <- responses %>% 
+  select(title) %>% 
+  mutate(role = str_to_lower(!!ensym(title))) %>% 
+  mutate(role = str_replace(role, "dry$", "dry lab")) %>% 
+  mutate(role = if_else(is.na(role), "no response", role)) %>% 
+  count(role) %>% 
+  mutate(role = fct_reorder(role, n), percentage = n / sum(n))
+
+
+dry %>% 
+  select(role, n, percentage) %>% 
+  gt() %>% 
+  fmt_percent("percentage")
+```
+
+```{r dry-lab-plot}
+dry %>% 
+  simple_bar("role", "n", title)
+```
+
+### Industry
+
+There are multiple possible responses indicating that a respondent works accross multiple industries (here the counts will be larger than the total responses).
+
+```{r industry-table}
+title <- questions$question[4]
+industry <- responses %>% 
+  select(title) %>% 
+  mutate(industry = str_to_lower(!!ensym(title))) %>% 
+  mutate(industry = str_split(industry, ", "),
+         n_roles = lengths(industry)) %>% 
+  unnest(industry) %>% 
+  mutate(industry = str_replace(industry, "instituto/hospital", "hospital / clinical")) %>% 
+  mutate(industry = if_else(is.na(industry), "no response", industry))
+
+industry_counts <- industry %>% 
+  count(industry) %>% 
+  mutate(Industry = fct_reorder(industry, n))
+
+industry_counts %>% 
+  select(Industry, n) %>% 
+  gt()
+```
+
+```{r industry-plot}
+industry_counts %>% 
+  simple_bar("Industry", "n", title)
+```
+
+### Location
+
+We have collapsed country into broad location representing the region of the world a respondent hails from.
+
+```{r location-table}
+title <- questions$question[5]
+location <- responses %>% 
+  select(title) %>% 
+  mutate(location = str_to_lower(!!ensym(title))) %>% 
+  mutate(broad_location = case_when(
+    str_detect(location, "australia") | str_detect(location, "korea") | str_detect(location, "india") | str_detect( location, "japan") ~ "Asia Pacific",
+    str_detect(location, "united state") |  str_detect(location, "us$")| str_detect(location, "usa$") | str_detect(location, "canada") ~ "North America",
+    str_detect(location, "ecuador") ~ "South America",
+    is.na(location) ~ "no response",
+    TRUE ~ "Europe"
+  ))
+
+location_counts <- location %>% 
+  count(broad_location) %>% 
+  mutate(Location = fct_reorder(broad_location, n))
+
+location_counts %>% 
+  select(Location, n) %>% 
+  gt()
+```
+
+```{r location-plot}
+location_counts %>% 
+  simple_bar("Location", "n", title) +
+  labs(title = "Where do you live/work?")
+```
+
+
+## Experience with programming and data analysis
+
+### R experience
+
+```{r}
+title <- questions$question[6]
+counts <- counts_with_reorder(responses, !!ensym(title), "r_experience") %>% 
+  add_percentage(n)
+counts %>%
+  select(-r_experience) %>% 
+  gt() %>% 
+  fmt_percent("percentage")
+```
+
+```{r}
+counts %>% 
+  simple_bar("r_experience", "n", title) +
+  labs(x = NULL)
+```
+
+### Do you use Base R?
+
+```{r}
+title <- questions$question[7]
+counts <- counts_with_reorder(responses, !!ensym(title), "base_r") %>% 
+  add_percentage(n)
+counts %>%
+  select(-base_r) %>% 
+  gt() %>% 
+  fmt_percent("percentage")
+```
+
+```{r}
+counts %>% 
+  simple_bar("base_r", "n", title) +
+  labs(x = NULL)
+```
+
+### Do you use tidyverse?
+
+```{r}
+title <- questions$question[8]
+counts <- counts_with_reorder(responses, !!ensym(title), "tidy") %>% 
+  add_percentage(n)
+counts %>%
+  select(-tidy) %>% 
+  gt() %>% 
+  fmt_percent("percentage")
+```
+
+```{r}
+counts %>% 
+  simple_bar("tidy", "n", title) +
+  labs(x = NULL)
+```
+
+### Bioconductor experience
+
+```{r}
+title <- questions$question[9]
+counts <- counts_with_reorder(responses, !!ensym(title), "bioc") %>% 
+  add_percentage(n)
+counts %>%
+  arrange(bioc) %>% 
+  select(-bioc) %>% 
+  gt() %>% 
+  fmt_percent("percentage")
+```
+
+```{r}
+counts %>% 
+  simple_bar("bioc", "n", title) +
+  labs(x = NULL)
+```
+
+
+### Frequent Bioconductor User?
+
+```{r}
+title <- questions$question[10]
+counts <- counts_with_reorder(responses, !!ensym(title), "bioc_f") %>% 
+  add_percentage(n)
+counts %>%
+  select(-bioc_f) %>% 
+  gt() %>% 
+  fmt_percent("percentage")
+```
+
+```{r}
+counts %>% 
+  simple_bar("bioc_f", "n", title) +
+  labs(x = NULL)
+```
+
+## Tooling
+
+### Programming Languages
+
+Note that we have checked this against the top programming languages listed on
+github [here](https://github.com/oprogramador/github-languages) to check
+for valid_respones. As a respondent could use multiple languages we have 
+split responses into counts of languages used. 
+
+```{r proglang-tbl}
+title <- questions$question[11]
+valid_langs <- jsonlite::read_json(here("data-raw/github-100.json")) %>% 
+  names() %>% 
+  str_to_lower() %>% 
+  append(c("bash", "lisp", "emacs-lisp"))
+
+filter_valid_langs <- function(x) { 
+  if (all(is.na(x))) return(NA_character_)
+  x[x == "r"] <- NA_character_
+  x[x %in% valid_langs]
+}
+
+proglang_counts <- responses %>% 
+  select(title) %>% 
+  mutate(proglang = str_to_lower(!!ensym(title))) %>% 
+  mutate(proglang = str_split(proglang, ",|\\s+")) %>% 
+  mutate(proglang2 = map(proglang, filter_valid_langs)) %>% 
+  unnest(proglang2) %>% 
+  counts_with_reorder(proglang2, "languages_used")
+
+proglang_counts %>% 
+  select(Language = languages_used, n) %>% 
+  arrange(desc(n)) %>% 
+  gt()
+```
+
+```{r proglang-plot}
+proglang_counts %>% 
+  filter(n > 5) %>% 
+  simple_bar("languages_used", "n", title) +
+  labs(x = NULL, title = "What other progamming languages do you use?")
+```
+
+### Other Biological Software Projects
+
+```{r}
+title <- questions$question[12]
+```
+
+### Types of data analysed
+
+```{r data-tbl}
+title <- questions$question[13]
+
+counts_data  <- responses %>% 
+  select(title) %>% 
+  mutate(data_types = str_to_lower(!!ensym(title))) %>% 
+  mutate(data_types = str_remove_all(data_types, " \\(whole genome, exome / targeted\\)")) %>% 
+  mutate(data_types = str_remove(data_types,"epigenetics ")) %>% 
+  mutate(data_types = str_remove_all(data_types, "[()]")) %>% 
+  mutate(data_types = str_replace(data_types, "scrna-seq", "single cell genomics")) %>% 
+  mutate(data_types = str_trim(data_types)) %>% 
+  mutate(data_types = str_split(data_types, ",{1}\\s{1}")) %>% 
+  unnest(data_types) %>% 
+  counts_with_reorder(data_types, "data_types")
+
+counts_data %>% 
+  rename(`Types of data` = data_types) %>% 
+  arrange(desc(n)) %>% 
+  gt()
+```
+
+```{r data-plots}
+counts_data %>% 
+  top_n(10) %>% 
+  simple_bar("data_types", "n", title) + 
+  labs(x = NULL)
+```
+
+### Developer Environments
+
+```{r ide-data}
+title <- questions$question[14]
+
+counts_data  <- responses %>% 
+  select(title) %>% 
+  mutate(ide = str_to_lower(!!ensym(title))) %>%
+  mutate(ide =  str_split(ide, ",{1}\\s{1}")) %>% 
+  unnest(ide) %>% 
+  counts_with_reorder(ide, "ide")
+
+counts_data %>% 
+  rename(`Developer Environment` = ide) %>% 
+  arrange(desc(n)) %>% 
+  gt()
+
+```
+```{r ide-plots}
+counts_data %>% 
+  top_n(5) %>% 
+  simple_bar("ide", "n", title) + 
+  labs(x = NULL)
+```
+
+### How do you use R?
+
+```{r use-r-data}
+title <- questions$question[15]
+
+use_r <- responses %>% 
+  select(title) %>% 
+  mutate(action = str_replace(!!ensym(title), ", b", " b")) %>%
+  mutate(action = str_replace(action, ", B", " / B")) %>% 
+  mutate(action = str_split(action, ",{1}\\s{1}")) %>% 
+  unnest(action) %>% 
+  counts_with_reorder(action, "action")
+
+use_r %>% 
+  rename(`How do you use R?` = action) %>% 
+  arrange(desc(n)) %>% 
+  gt()
+```
+
+```{r use-r-plot}
+use_r %>% 
+  simple_bar("action", "n", title) + 
+  labs(x = NULL)
+```
+
+## Bioconductor 
+
+### Barriers to contributing
+```{r barriers}
+title <- questions$question[16]
+
+barriers  <- responses %>% 
+  select(title) %>% 
+  mutate(barriers = str_replace(!!ensym(title), "[Nn]one", NA_character_),
+         barriers = str_replace(barriers, "N.A.", NA_character_))
+
+barriers %>% 
+  filter(!is.na(barriers)) %>% 
+  sample_n(n()) %>% 
+  select(`What barriers are there to contributing your package to Bioconductor?` = barriers) %>% 
+  gt()
+```
+
+### Getting help
+
+```{r}
+title <- questions$question[17]
+
+help_counts  <- responses %>% 
+  select(title) %>%
+  mutate(help = str_to_lower(!!ensym(title))) %>% 
+  mutate(vignette = str_detect(help, "vignette"),
+         manual = str_detect(help, "man pages") | str_detect(help, "reference ") | str_detect(help, "documentation") | str_detect(help, "help page"),
+         google = str_detect(help, "google"),
+         `support site` = str_detect(help, "support"),
+         biostars = str_detect(help, "biostar"),
+         slack = str_detect(help, "slack"),
+         `stack overflow` = str_detect(help, "stack overflow"),
+         seqanswers = str_detect(help, "seqanswers"),
+         `no response` = is.na(help)
+  ) %>% 
+  gather("source", "used", -c(1,2)) %>% 
+  count(source, used) %>% 
+  filter(used) %>% 
+  select(source, n) %>% 
+  mutate(source = fct_reorder(source, n))
+
+help_counts %>% 
+  select(Source = source, n) %>% 
+  arrange(desc(n)) %>% 
+  gt()
+```
+
+```{r}
+help_counts %>% 
+  simple_bar("source", "n", title) + 
+  labs(x = NULL)
+```
+
+
+### Aspects of Bioconductor
+
+```{r aspects-data}
+
+likert_questions <- questions %>% 
+  slice(18:32) %>% 
+  mutate(short_title = str_extract_all(question, "\\[.+?\\]")) %>% 
+  mutate(scale = map_chr(short_title, ~.[1]),
+         aspect = map_chr(short_title, ~.[2])) %>% 
+  mutate(scale = str_replace_all(scale, "\\[Guide to Scale: |\\]", ""),
+         aspect = str_replace_all(aspect, "\\[|\\]", ""),
+         aspect = str_trim(aspect)) %>% 
+  mutate(scale = str_split(scale, "; ")) %>% 
+  unnest(scale) %>% 
+  mutate(scale = str_split(scale, " = "),
+         scale_num = map_int(scale, ~as.integer(.x[1])), 
+         scale_char = map_chr(scale, ~.x[2])) %>% 
+  select(question, aspect, scale_num, scale_char)
+
+
+likert_questions <- likert_questions %>% 
+  select(question, aspect) %>% 
+  distinct() %>% 
+  mutate(scale_num = NA_integer_,
+         scale_char = "No Response") %>% 
+  bind_rows(likert_questions) %>% 
+  arrange(question, aspect)
+  
+
+scaled_questions <- responses %>% 
+  select(likert_questions$question) %>% 
+  gather("question", "response") %>% 
+  mutate(response = if_else(response == "Not Applicable / Rarely use", NA_character_, response),
+         response = as.integer(response)) %>% 
+  count(question, response) %>% 
+  left_join(likert_questions, by = c("question", "response" =  "scale_num")) %>%
+  mutate(scale_char = factor(scale_char,
+                             levels = c("No Response", unique(scale_char)[1:5])))
+  
+
+scaled_questions %>% 
+  select(aspect,scale_char, n) %>% 
+  spread(scale_char, n) %>% 
+  gt()
+```
+
+```{r aspects-plot, fig.width = 12, fig.height = 8}
+ggplot(scaled_questions,
+       aes(x = scale_char, y = n)) +
+  geom_col() +
+  labs(x = NULL, y = "Count", title = "Satisfication with Bioconductor") +
+  coord_flip() +
+  facet_wrap(~aspect, nrow = 5, ncol = 3) +
+  theme(strip.text = element_text(size = 6))
+```
+
+### Experiences with Resources and Packages
+
+```{r anno}
+title <- questions$question[33]
+responses %>% 
+  select(title) %>% 
+  filter(!is.na(!!ensym(title))) %>% 
+  sample_n(n()) %>% 
+  gt()
+```
+
+```{r features}
+title <- questions$question[34]
+responses %>% 
+  select(title) %>% 
+  filter(!is.na(!!ensym(title))) %>% 
+  sample_n(n()) %>% 
+  gt()
+```
+
+```{r}
+title <- questions$question[35]
+responses %>% 
+  select(title) %>% 
+  filter(!is.na(!!ensym(title))) %>% 
+  sample_n(n()) %>% 
+  gt()
+```
+
+## Opinions on Bioconductor
+
+### Best Parts
+```{r best}
+title <- questions$question[36]
+responses %>% 
+  select(title) %>% 
+  filter(!is.na(!!ensym(title))) %>% 
+  sample_n(n()) %>% 
+  gt()
+```
+
+### Worst Parts
+```{r}
+title <- questions$question[37]
+
+responses %>% 
+  select(title) %>% 
+  filter(!is.na(!!ensym(title))) %>% 
+  sample_n(n()) %>% 
+  gt()
+```
+
+## Future Work and Comments
+
+### Ideas for the Community 
+
+```{r}
+title <- questions$question[38]
+
+responses %>% 
+  select(title) %>% 
+  filter(!is.na(!!ensym(title))) %>% 
+  sample_n(n()) %>% 
+  gt()
+```
+
+### Limitations
+
+```{r}
+title <- questions$question[39]
+
+responses %>% 
+  select(title) %>% 
+  filter(!is.na(!!ensym(title))) %>% 
+  sample_n(n()) %>% 
+  gt()
+```
+
+### Other Comments
+
+```{r}
+title <- questions$question[40]
+
+responses %>% 
+  select(title) %>% 
+  filter(!is.na(!!ensym(title))) %>% 
+  sample_n(n()) %>% 
+  gt()
+```
