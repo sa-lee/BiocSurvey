@@ -28,7 +28,7 @@ responses
 ```
 
 If you want to just read the report, see the `vignette(package = "BiocSurvey")`
-or read it online [here](https://sa-lee.github.io/BiocSurvey/report.hmtl).
+or read it online [here](https://sa-lee.github.io/BiocSurvey/articles/report.html).
 
 
 
