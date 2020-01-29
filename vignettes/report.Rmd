@@ -51,7 +51,7 @@ counts_with_reorder <- function(.data, var, var_clean) {
 add_percentage <- function(.data, var) {
   var <- enquo(var)
   .data %>% 
-    mutate(percentage = !!var / sum(!!var) )
+    mutate(percentage = round(100 * !!var / sum(!!var), 2) )
 }
 
 ```
@@ -83,12 +83,12 @@ gender <- responses %>%
   mutate(Gender = gendercodeR::recode_gender(Gender)) %>% 
   mutate(Gender = if_else(is.na(Gender), "no response", Gender)) %>% 
   count(Gender) %>% 
-  mutate(percentage = n / sum(n)) %>% 
+  add_percentage(n) %>% 
   mutate(Gender = fct_reorder(Gender, n))
 
 gender %>% 
-  gt() %>% 
-  fmt_percent("percentage")
+  gt() 
+  
 ```
 
 ```{r gender-bar}
@@ -124,12 +124,13 @@ career_stage <- responses %>%
     TRUE ~ "other"
   )) %>% 
   count(profile, wt = n) %>% 
-  mutate(Position = fct_reorder(profile, n), percentage = n / sum(n))
+  mutate(Position = fct_reorder(profile, n)) %>% 
+  add_percentage(n)
 
 career_stage %>% 
-  select(-profile, Position, n, percentage) %>% 
-  gt() %>% 
-  fmt_percent("percentage")
+  select(Position, n, percentage) %>% 
+  gt() 
+  
 ```
 
 ```{r stage-plot}
@@ -148,13 +149,14 @@ dry <- responses %>%
   mutate(role = str_replace(role, "dry$", "dry lab")) %>% 
   mutate(role = if_else(is.na(role), "no response", role)) %>% 
   count(role) %>% 
-  mutate(role = fct_reorder(role, n), percentage = n / sum(n))
+  mutate(role = fct_reorder(role, n)) %>% 
+  add_percentage(n)
 
 
 dry %>% 
   select(role, n, percentage) %>% 
-  gt() %>% 
-  fmt_percent("percentage")
+  gt() 
+  
 ```
 
 ```{r dry-lab-plot}
@@ -234,8 +236,8 @@ counts <- counts_with_reorder(responses, !!ensym(title), "r_experience") %>%
   add_percentage(n)
 counts %>%
   select(-r_experience) %>% 
-  gt() %>% 
-  fmt_percent("percentage")
+  gt() 
+  
 ```
 
 ```{r}
@@ -252,8 +254,8 @@ counts <- counts_with_reorder(responses, !!ensym(title), "base_r") %>%
   add_percentage(n)
 counts %>%
   select(-base_r) %>% 
-  gt() %>% 
-  fmt_percent("percentage")
+  gt() 
+  
 ```
 
 ```{r}
@@ -270,8 +272,8 @@ counts <- counts_with_reorder(responses, !!ensym(title), "tidy") %>%
   add_percentage(n)
 counts %>%
   select(-tidy) %>% 
-  gt() %>% 
-  fmt_percent("percentage")
+  gt() 
+  
 ```
 
 ```{r}
@@ -289,8 +291,8 @@ counts <- counts_with_reorder(responses, !!ensym(title), "bioc") %>%
 counts %>%
   arrange(bioc) %>% 
   select(-bioc) %>% 
-  gt() %>% 
-  fmt_percent("percentage")
+  gt() 
+  
 ```
 
 ```{r}
@@ -308,8 +310,8 @@ counts <- counts_with_reorder(responses, !!ensym(title), "bioc_f") %>%
   add_percentage(n)
 counts %>%
   select(-bioc_f) %>% 
-  gt() %>% 
-  fmt_percent("percentage")
+  gt() 
+  
 ```
 
 ```{r}
